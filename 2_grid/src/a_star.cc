@@ -7,48 +7,42 @@ Astar::Astar(const Option &p, const std::string &grid_file)
 
 std::vector<Point> Astar::FindShorestPathFunc(const Point &start, const Point &dest) 
 {
-    std::set<Point> visited;
+    if(!VerifyNode(start) || !VerifyNode(dest)) return std::vector<Point>();
 
-    auto cmp = [](const Node *left, const Node *right) { return left->sum_cost > right->sum_cost; };
-    std::priority_queue<Node *, std::vector<Node *>, decltype(cmp)> pq(cmp);
+    std::set<Point> closed_list;
 
-    Node *start_node = new Node(start, 0, NULL);
-    std::vector<Node> movements = GetMotionModel();
-    pq.push(start_node);
+    auto cmp = [](const Node *left, const Node *right) { return left->SumCost() > right->SumCost(); };
+    std::priority_queue<Node *, std::vector<Node *>, decltype(cmp)> open_list(cmp);
 
-    while (!pq.empty())
+    open_list.push(new Node(start)); // 给一个起点
+    while (!open_list.empty())
     {
-        Node *curr_node = pq.top();
-        pq.pop();
+        Node *curr_node = open_list.top();
+        open_list.pop();
 
-        if (curr_node->cmp(dest))
+        // 找到目标节点, 返回路径
+        if (curr_node->cmp(dest)) 
         {
-            std::vector<Point> path;
-            while (curr_node != NULL)
-            {
-                path.push_back(curr_node->pos);
-                curr_node = curr_node->pre_node;
-            }
-            std::reverse(path.begin(), path.end());
-            return path;
+            std::cout << "closed_list.size(): " << closed_list.size() << std::endl;
+            return curr_node->Path();
         }
+           
+        // 更新closed_list
+        if(closed_list.find(curr_node->pos) != closed_list.end())   continue;  
+        else                                                closed_list.insert(curr_node->pos);        
 
-        if (visited.find(curr_node->pos) != visited.end())
-            continue;
-        visited.insert(curr_node->pos);
-
+        // 更新open_list
+        static std::vector<Node> movements = GetMotionModel(); // 四近邻/八近邻
         for (const Node &movement : movements)
         {
             Point new_pos = Point(curr_node->pos.x + movement.pos.x, curr_node->pos.y + movement.pos.y);
-            if (!VerifyNode(new_pos))
-                continue;
-
-            float cost = curr_node->sum_cost + GetMovementCost(new_pos);
-            float heuristic = Heuristic(new_pos, dest);
-            float sum_cost = cost + heuristic;
-
-            Node *successor = new Node(new_pos, sum_cost, curr_node);
-            pq.push(successor);
+            
+            // 若节点已经被探索过或者是障碍物则跳过
+            if (!VerifyNode(new_pos)) continue;
+               
+            // 将更新后的节点加入openList
+            // open_list.push(new Node(new_pos, GetMovementCost(new_pos) , Heuristic(new_pos, dest), curr_node));      // Astar
+            open_list.push(new Node(new_pos, GetMovementCost(new_pos), 0, curr_node));                                 // Dijkstra
         }
     }
 
@@ -73,12 +67,13 @@ float Astar::Heuristic(const Point &pos, const Point &dest)
     return std::sqrt(dx * dx + dy * dy);
 }
 
+// 四近邻/八近邻(FindNeighbors())
 std::vector<Node> Astar::GetMotionModel()
 {
-    return {Node(Point(1, 0), 1),
-            Node(Point(0, 1), 1),
-            Node(Point(-1, 0), 1),
-            Node(Point(0, -1), 1)};
+    return {Node(Point(1, 0)),
+            Node(Point(0, 1)),
+            Node(Point(-1, 0)),
+            Node(Point(0, -1))};
 
     // return {Node(Point(1, 0), 1),
     //         Node(Point(0, 1), 1),
